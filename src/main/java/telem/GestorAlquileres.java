@@ -11,9 +11,11 @@ import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
@@ -25,8 +27,11 @@ import org.json.JSONTokener;
 
 public class GestorAlquileres {
 
+    private static final int UMBRAL_CLIENTE_FRECUENTE = 3;
     private int contadorAlquileres = 0;
     private Alquiler[] alquileres = new Alquiler[1000];
+    private Set<Alquiler> alquileresActivos = new HashSet<>();
+    private Map<Alquiler, PoliticasDePrecios> tarifas = new HashMap<>();
 
     private Cliente[] clientes = new Cliente[10];
     private Vehiculo[] vehiculos = new Vehiculo[100];
@@ -62,31 +67,26 @@ public class GestorAlquileres {
         vehiculos[7] = new Motocicleta("MEA2026", Categoria.ESPECIAL, 2026, 1000);
         vehiculos[8] = new VehiculoIndustrial("CEA2025", Categoria.ESPECIAL, 2025, 4400, 5);
 
-    }
-
-     public Vehiculo[] obtenerVehiculos(String tipo) {
-
-        Vehiculo[] vehiculosFiltrados = new Vehiculo[vehiculos.length];
-        int contador = 0;
-
         for (Vehiculo vehiculo : vehiculos) {
             if (vehiculo != null) {
-                if (vehiculo.getTipo().equals(tipo)) {
-                    vehiculosFiltrados[contador++] = vehiculo;
-                }
+                vehiculo.setDisponible(true);
             }
         }
+    }
 
-        Vehiculo[] resultado = new Vehiculo[contador];
-        System.arraycopy(vehiculosFiltrados, 0, resultado, 0, contador);
-        return resultado;
+    public Vehiculo[] obtenerVehiculos(String tipo) {
+        return obtenerVehiculos(tipo, null);
     }
 
     public Vehiculo[] obtenerVehiculos(String tipo, Categoria categoria) {
-
-        System.out.println("GestorAlquileres: obtenerVehiculos(tipo, categoria): método no implementado");
-
-        return null;
+        List<Vehiculo> resultado = new ArrayList<>();
+        for (Vehiculo vehiculo : vehiculos) {
+            if (vehiculo != null && vehiculo.getTipo().equals(tipo)
+                    && (categoria == null || vehiculo.getCategoria() == categoria)) {
+                resultado.add(vehiculo);
+            }
+        }
+        return resultado.toArray(new Vehiculo[0]);
     }
 
     public void agregarAlquiler(Alquiler alquiler) {
@@ -103,17 +103,19 @@ public class GestorAlquileres {
     }
 
     public Alquiler[] obtenerAlquileres(Cliente cliente) {
-
-        System.out.println("GestorAlquileres: obtenerAlquileres(cliente): método no implementado");
-
-        return null;
+        List<Alquiler> resultado = new ArrayList<>();
+        if (cliente != null) {
+            for (Alquiler alquiler : alquileres) {
+                if (alquiler != null && cliente.getDni().equals(alquiler.getCliente().getDni())) {
+                    resultado.add(alquiler);
+                }
+            }
+        }
+        return resultado.toArray(new Alquiler[0]);
     }
 
     private boolean esClienteFrecuente(Cliente cliente, int umbral) {
-
-        System.out.println("GestorAlquileres: esClienteFrecuente(cliente, umbral): método no implementado");
-
-        return false;
+        return obtenerAlquileres(cliente).length > umbral;
     }
 
     public void guardarDatos(Path fichero) throws IOException {
@@ -130,10 +132,16 @@ public class GestorAlquileres {
             }
         }
 
-        List<Alquiler> alquileresGuardados = new ArrayList<>();
+        JSONArray alquileresGuardados = new JSONArray();
         for (Alquiler alquiler : alquileres) {
             if (alquiler != null) {
-                alquileresGuardados.add(alquiler);
+                JSONObject datosAlquiler = new JSONObject(alquiler.toString())
+                        .put("activo", alquileresActivos.contains(alquiler));
+                PoliticasDePrecios tarifa = tarifas.get(alquiler);
+                if (tarifa != null) {
+                    datosAlquiler.put("tarifa", tarifa.name());
+                }
+                alquileresGuardados.put(datosAlquiler);
                 Cliente cliente = alquiler.getCliente();
                 Vehiculo vehiculo = alquiler.getVehiculo();
                 clientesGuardados.putIfAbsent(cliente.getDni(), cliente);
@@ -146,7 +154,7 @@ public class GestorAlquileres {
         JSONObject datos = new JSONObject()
                 .put("clientes", serializar(clientesGuardados.values()))
                 .put("vehiculos", serializar(vehiculosGuardados.values()))
-                .put("alquileres", serializar(alquileresGuardados));
+                .put("alquileres", alquileresGuardados);
 
         Path destino = fichero.toAbsolutePath();
         if (destino.getFileName() == null) {
@@ -183,13 +191,36 @@ public class GestorAlquileres {
             comprobarClavesUnicas(nuevosClientes, Cliente::getDni, "DNI");
             comprobarClavesUnicas(nuevosVehiculos, Vehiculo::getMatricula, "matrícula");
 
-            List<Alquiler> nuevosAlquileres = deserializar(datosAlquileres,
-                    json -> FactoriaAlquileres.getAlquiler(json, nuevosClientes, nuevosVehiculos));
+            List<Alquiler> nuevosAlquileres = new ArrayList<>();
+            Set<Alquiler> nuevosActivos = new HashSet<>();
+            Set<String> matriculasActivas = new HashSet<>();
+            Map<Alquiler, PoliticasDePrecios> nuevasTarifas = new HashMap<>();
+            for (int i = 0; i < datosAlquileres.length(); i++) {
+                JSONObject datosAlquiler = datosAlquileres.getJSONObject(i);
+                Alquiler alquiler = FactoriaAlquileres.getAlquiler(
+                        datosAlquiler.toString(), nuevosClientes, nuevosVehiculos);
+                if (datosAlquiler.has("tarifa")) {
+                    PoliticasDePrecios tarifa = PoliticasDePrecios.valueOf(datosAlquiler.getString("tarifa"));
+                    alquiler.setEstrategia(FactoriaPoliticasPrecio.getPolitica(tarifa));
+                    nuevasTarifas.put(alquiler, tarifa);
+                }
+                if (datosAlquiler.has("activo") && datosAlquiler.getBoolean("activo")) {
+                    Vehiculo vehiculo = alquiler.getVehiculo();
+                    if (!matriculasActivas.add(vehiculo.getMatricula())) {
+                        throw new IllegalArgumentException("Hay varios alquileres activos para " + vehiculo.getMatricula());
+                    }
+                    vehiculo.setDisponible(false);
+                    nuevosActivos.add(alquiler);
+                }
+                nuevosAlquileres.add(alquiler);
+            }
 
             clientes = nuevosClientes.toArray(new Cliente[clientes.length]);
             vehiculos = nuevosVehiculos.toArray(new Vehiculo[vehiculos.length]);
             alquileres = nuevosAlquileres.toArray(new Alquiler[alquileres.length]);
             contadorAlquileres = nuevosAlquileres.size();
+            alquileresActivos = nuevosActivos;
+            tarifas = nuevasTarifas;
         } catch (JSONException | IllegalArgumentException | DateTimeException e) {
             throw new IOException("El fichero de alquileres no es válido: " + e.getMessage(), e);
         }
@@ -229,7 +260,7 @@ public class GestorAlquileres {
         }
     }
 
-    public void menuPrincipal(){
+    public void menuPrincipal() {
 
         while (true) {
             System.out.println("Gestión de Alquileres");
@@ -265,55 +296,91 @@ public class GestorAlquileres {
 
                 switch (opcion) {
                     case 1:
-                        Vehiculo v = seleccionarVehiculo(cliente);
-                        if (v != null && v.isDisponible()){
-                            System.out.println("¿cuántos días desea alquilar el vehículo?");
-                            int dias = leerEntero();
-                            if (dias <= 0) {
-                                System.out.println("La duración debe ser un número positivo.");
-                                break;
-                            }
-                            LocalDate inicio = LocalDate.now();
-                            LocalDate fin = inicio.plusDays(dias);
-
-                            Alquiler q = new Alquiler(v, cliente, inicio, fin);
-                            this.agregarAlquiler(q);
-
-                            boolean usuarioFrecuente = this.esClienteFrecuente(cliente, 3);
-
-                            if (usuarioFrecuente){
-
-                                System.out.println("Alquiler realizado. Tarifa Usuario frecuente.");
-                            }
-                            else{
-                                System.out.println("Alquiler realizado. Tarifa Normal.");
-
-                            }
-
-                        }
-                        else{
-                            System.out.println("Debe seleccionar un vehículo disponible");
-                        }
+                        alquilarVehiculo(cliente);
                         break;
                     case 2:
-                        System.out.println("opción no implementada");
-
+                        devolverVehiculo(cliente);
                         break;
                     case 3:
-                        Alquiler alqs [] = obtenerAlquileres(cliente);
-                        if (alqs != null) {
-                            for (Alquiler q: alqs){
-                                System.out.print(q);
-                            }
-                        }
+                        mostrarHistorial(cliente);
                         break;
                     default:
+                        System.out.println("Opción inválida.");
                         break;
                 }
             }
             else{
                 System.out.println("Debe identificarse correctamente o salir de la app");
             }
+        }
+    }
+
+    private void alquilarVehiculo(Cliente cliente) {
+        if (contadorAlquileres >= alquileres.length) {
+            System.out.println("No se pueden agregar más alquileres. Capacidad máxima alcanzada.");
+            return;
+        }
+        Vehiculo vehiculo = seleccionarVehiculo(cliente);
+        if (vehiculo == null) {
+            return;
+        }
+
+        System.out.println("¿Cuántos días desea alquilar el vehículo?");
+        int dias = leerEntero();
+        if (dias <= 0) {
+            System.out.println("La duración debe ser un número positivo.");
+            return;
+        }
+
+        LocalDate inicio = LocalDate.now();
+        Alquiler alquiler = new Alquiler(vehiculo, cliente, inicio, inicio.plusDays(dias - 1L));
+        PoliticasDePrecios tarifa = esClienteFrecuente(cliente, UMBRAL_CLIENTE_FRECUENTE)
+                ? PoliticasDePrecios.ClienteFrecuente : PoliticasDePrecios.Normal;
+        alquiler.setEstrategia(FactoriaPoliticasPrecio.getPolitica(tarifa));
+        agregarAlquiler(alquiler);
+        tarifas.put(alquiler, tarifa);
+        alquileresActivos.add(alquiler);
+        vehiculo.setDisponible(false);
+        System.out.printf(Locale.forLanguageTag("es-ES"), "Alquiler realizado. Tarifa %s. Precio: %.2f EUR%n",
+                tarifa, alquiler.calcularPrecioAlquiler());
+    }
+
+    private void devolverVehiculo(Cliente cliente) {
+        List<Alquiler> devoluciones = new ArrayList<>();
+        for (Alquiler alquiler : obtenerAlquileres(cliente)) {
+            if (alquileresActivos.contains(alquiler)) {
+                devoluciones.add(alquiler);
+            }
+        }
+        if (devoluciones.isEmpty()) {
+            System.out.println("No tiene alquileres activos.");
+            return;
+        }
+        for (int i = 0; i < devoluciones.size(); i++) {
+            System.out.println(i + " ---> " + devoluciones.get(i).getVehiculo().getMatricula());
+        }
+        System.out.println("Introduzca el número del vehículo que desea devolver (-1 para cancelar):");
+        int seleccion = leerEntero();
+        if (seleccion == -1) {
+            return;
+        }
+        if (seleccion < 0 || seleccion >= devoluciones.size()) {
+            System.out.println("Número de vehículo inválido.");
+            return;
+        }
+        Alquiler alquiler = devoluciones.get(seleccion);
+        alquileresActivos.remove(alquiler);
+        alquiler.getVehiculo().setDisponible(true);
+        System.out.println("Vehículo devuelto: " + alquiler.getVehiculo().getMatricula());
+    }
+
+    private void mostrarHistorial(Cliente cliente) {
+        Alquiler[] historial = obtenerAlquileres(cliente);
+        if (historial.length == 0) {
+            System.out.println("No tiene alquileres registrados.");
+        }
+        for (Alquiler alquiler : historial) {
+            System.out.println(alquiler);
         }
     }
 
@@ -418,8 +485,6 @@ public class GestorAlquileres {
                     continue;
             }
 
-            System.out.println("Vehiculos disponibles");
-
             System.out.println("Estimado Sr./Sra. " + cliente.getNombre() + "\n seleccione categoría.");
             System.out.println("Introduzca el número correspondiente a la categoría que desea alquilar:");
             System.out.println("1. Normal, 2. Superior, 3. Especial, 4.Cualquiera: ");
@@ -446,24 +511,33 @@ public class GestorAlquileres {
                     return null;
             }
 
-            if (elegibles == null || elegibles.length == 0) {
+            List<Vehiculo> disponibles = new ArrayList<>();
+            for (Vehiculo candidato : elegibles) {
+                if (candidato.isDisponible()) {
+                    disponibles.add(candidato);
+                }
+            }
+            if (disponibles.isEmpty()) {
                 System.out.println("No hay vehículos para esa selección.");
                 return null;
             }
 
-            System.out.println("Coches elegibles");
+            System.out.println("Vehículos disponibles");
 
-            for(int i = 0; i < elegibles.length; i++){
-                System.out.println(i + " ---> " + elegibles[i]);
+            for (int i = 0; i < disponibles.size(); i++) {
+                System.out.println(i + " ---> " + disponibles.get(i));
             }
 
-            System.out.println("Introduzca número coche (sólo si está disponible)");
+            System.out.println("Introduzca el número del vehículo (-1 para cancelar):");
             int seleccion = leerEntero();
-            if (seleccion < 0 || seleccion >= elegibles.length) {
+            if (seleccion == -1) {
+                return null;
+            }
+            if (seleccion < 0 || seleccion >= disponibles.size()) {
                 System.out.println("Número de vehículo inválido.");
                 return null;
             }
-            vehiculo = elegibles[seleccion];
+            vehiculo = disponibles.get(seleccion);
             seleccionado = true;
         }
         return vehiculo;
@@ -472,7 +546,9 @@ public class GestorAlquileres {
     public void listarAlquileres (){
         System.out.println("Listado de alquileres");
         for (Alquiler alq: alquileres){
-            System.out.println(alq);
+            if (alq != null) {
+                System.out.println(alq);
+            }
         }
         System.out.println();
     }
@@ -480,7 +556,9 @@ public class GestorAlquileres {
     public void listarVehiculos(){
         System.out.println("Listado de vehículos");
         for (Vehiculo veh: vehiculos){
-            System.out.println(veh);
+            if (veh != null) {
+                System.out.println(veh);
+            }
         }
         System.out.println();
     }
