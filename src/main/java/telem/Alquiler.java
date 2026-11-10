@@ -1,7 +1,6 @@
 package telem;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import org.json.JSONObject;
 
 /**
@@ -10,7 +9,7 @@ import org.json.JSONObject;
  * Alquiler
  */
 public class Alquiler {
-    
+    private PoliticaPrecio estrategia;
     private Vehiculo vehiculo;
     private Cliente cliente;
     private LocalDate fechaInicio;
@@ -26,6 +25,8 @@ public class Alquiler {
         this.cliente = cliente;
         this.fechaInicio = fechaInicio;
         this.fechaFin = fechaFin;
+        this.estrategia = new PoliticaNormal();
+
     }
 
     public static Alquiler[] obtenerAlquileres() {
@@ -57,9 +58,12 @@ public class Alquiler {
         return fechaFin;
     }
 
-    public int calcularPrecioAlquiler(LocalDate fechaInicio, LocalDate fechaFin) {
-        int dias = (int) ChronoUnit.DAYS.between(fechaInicio, fechaFin) + 1;
-        return dias * PRECIO_BASE;
+    public void setEstrategia(PoliticaPrecio estrategia) {
+    this.estrategia = estrategia;
+    }
+
+    public double calcularPrecioAlquiler() {
+        return estrategia.calcular(this);
     }
 
     @Override 
