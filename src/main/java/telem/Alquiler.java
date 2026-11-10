@@ -25,7 +25,7 @@ public class Alquiler {
         this.cliente = cliente;
         this.fechaInicio = fechaInicio;
         this.fechaFin = fechaFin;
-        this.estrategia = new PoliticaNormal();
+        this.estrategia = FactoriaPoliticasPrecio.getPolitica(PoliticasDePrecios.Normal);
 
     }
 
