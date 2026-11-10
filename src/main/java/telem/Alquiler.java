@@ -66,9 +66,16 @@ public class Alquiler {
         return estrategia.calcular(this);
     }
 
-    @Override 
+    @Override
     public String toString() {
-        return new JSONObject(this).toString();
+        JSONObject datos = new JSONObject();
+
+        datos.put("matricula", vehiculo.getMatricula());
+        datos.put("dni", cliente.getDni());
+        datos.put("fechaInicio", fechaInicio.toString());
+     datos.put("fechaFin", fechaFin.toString());
+
+     return datos.toString();
     }
 
     public static void main(String[] args) {

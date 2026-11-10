@@ -40,9 +40,18 @@ public abstract class Vehiculo {
         this.disponible = disponible;
     }
 
-    @Override 
+    public abstract String getTipo();
+    @Override
     public String toString() {
-        return new JSONObject(this).toString();
-    }
+        JSONObject datos = new JSONObject();
+
+        datos.put("tipo", getTipo());
+        datos.put("matricula", matricula);
+        datos.put("categoria", categoria.name());
+        datos.put("annio", annio);
+        datos.put("disponible", disponible);
+
+        return datos.toString();
+}
 
 }

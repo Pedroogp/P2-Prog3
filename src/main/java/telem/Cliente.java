@@ -2,18 +2,17 @@ package telem;
 
 import org.json.JSONObject;
 
-/**
- * Modela un cliente con nombre y DNI.
- * Cliente
- */
 public class Cliente {
-
     String nombre;
     String dni;
 
     public Cliente(String nombre, String dni) {
         this.nombre = nombre;
         this.dni = dni;
+    }
+
+    public Cliente(JSONObject datos) {
+        this(datos.getString("nombre"), datos.getString("dni"));
     }
 
     public String getNombre() {
@@ -24,14 +23,16 @@ public class Cliente {
         return dni;
     }
 
-    @Override 
+    @Override
     public String toString() {
-        return new JSONObject(this).toString();
+        JSONObject datos = new JSONObject();
+        datos.put("nombre", nombre);
+        datos.put("dni", dni);
+        return datos.toString();
     }
 
     public static void main(String[] args) {
         Cliente cliente = new Cliente("Juan Pérez", "12345678A");
-        System.out.println(cliente.toString());
+        System.out.println(cliente);
     }
-
 }

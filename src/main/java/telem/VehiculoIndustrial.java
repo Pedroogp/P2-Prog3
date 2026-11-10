@@ -23,8 +23,21 @@ public class VehiculoIndustrial extends Vehiculo {
         return numeroEjes;
     }
 
-    @Override 
-    public String toString() {
-        return new JSONObject(this).toString();
+
+        @Override
+    public String getTipo() {
+        return "VehiculoIndustrial";
     }
+
+
+    @Override
+    public String toString() {
+        JSONObject datos = new JSONObject(super.toString());
+
+        datos.put("capacidadCarga", capacidadCarga);
+        datos.put("numeroEjes", numeroEjes);
+
+        return datos.toString();
+    }
+
 }

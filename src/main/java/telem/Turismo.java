@@ -1,5 +1,5 @@
 package telem;
-
+import org.json.JSONObject;
 public class Turismo extends Vehiculo {
 
     int plazas;
@@ -20,4 +20,20 @@ public class Turismo extends Vehiculo {
     public double getCapacidadMaletero() {
         return capacidadMaletero;
     }
+
+    @Override
+        public String getTipo() {
+    return "Turismo";
+    }
+
+
+    @Override
+    public String toString() {
+        JSONObject datos = new JSONObject(super.toString());
+
+         datos.put("plazas", plazas);
+        datos.put("capacidadMaletero", capacidadMaletero);
+
+        return datos.toString();
+}
 }
