@@ -1,9 +1,9 @@
 package telem;
 
-
+import java.time.LocalDate;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import java.util.Date;
+
 
 public class AlquilerTest {
 
@@ -16,8 +16,8 @@ public class AlquilerTest {
 
         Cliente cliente = new Cliente("Juan Pérez", "12345678A");
 
-        Date inicio = new Date(0L);
-        Date fin = new Date(3L * 24 * 60 * 60 * 1000);
+        LocalDate inicio = LocalDate.of(2026, 11, 10);
+        LocalDate fin = LocalDate.of(2026, 11, 12);
 
         Alquiler alquiler = new Alquiler(
             turismo, cliente, inicio, fin
@@ -38,8 +38,9 @@ public class AlquilerTest {
 
         Cliente cliente = new Cliente("Juan Pérez", "12345678A");
 
-        Date inicio = new Date(0L);
-        Date fin = new Date(3L * 24 * 60 * 60 * 1000);
+
+        LocalDate inicio = LocalDate.of(2026, 11, 10);
+        LocalDate fin = LocalDate.of(2026, 11, 12);
 
         Alquiler alquiler = new Alquiler(
             turismo, cliente, inicio, fin
