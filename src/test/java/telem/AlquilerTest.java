@@ -46,8 +46,7 @@ public class AlquilerTest {
             turismo, cliente, inicio, fin
         );
 
-        int precio = alquiler.calcularPrecioAlquiler(inicio, fin);
-
-        assertEquals(150, precio);
+            double precio = alquiler.calcularPrecioAlquiler();
+            assertEquals(150.0, precio, 0.001);
     }
 }
